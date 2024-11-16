@@ -1,12 +1,20 @@
+## Environment
+
+- Node.js: > v18.18.0
+- NPM: >= 9.8.1
+
 # Running the project
 
 1. Install dependencies: `npm install`
-2. Create a `.env` file
-3. cp .env.example .env
-4. Update DB_USERNAME, DB_PASSWORD in .env
-5. Run the project: `npm run start:dev`
+2. cp .env.example .env
+3. Update DB_USERNAME, DB_PASSWORD in .env
+4. Run the project: `npm run start:dev`
 
-## Endpoints
+## Swagger Endpoints
+
+- /api
+
+## API Endpoints
 
 1. Create a new product
 
@@ -35,6 +43,10 @@
 7. Delete a product by id
 
 - [DELETE] /product/:id
+
+## Running the tests
+
+1. `npm run test`
 
 ## Cache
 
