@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { DecimalColumnTransformer } from 'src/common/utils/DecimalColumnTransformer';
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity({ name: 'product' })
@@ -25,6 +26,8 @@ export class Product {
   location: string;
 
   @ApiProperty({ example: 100, description: 'The price of the product' })
-  @Column()
+  @Column('decimal', {
+    transformer: new DecimalColumnTransformer(),
+  })
   price: number;
 }
