@@ -11,6 +11,8 @@ import {
   ParseIntPipe,
   ValidationPipe,
   UseInterceptors,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -53,10 +55,17 @@ export class ProductController {
     description: 'Returns list of product',
     type: [Product],
   })
-  create(
+  async create(
     @Body(ValidationPipe) createProductDto: CreateProductDto,
   ): Promise<Product> {
-    return this.productService.create(createProductDto);
+    try {
+      return await this.productService.create(createProductDto);
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Error creating product',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Get()
@@ -70,8 +79,17 @@ export class ProductController {
     type: Product,
     isArray: true,
   })
-  findAll(@Query(ValidationPipe) query: FindProductDto): Promise<Product[]> {
-    return this.productService.findAll(query);
+  async findAll(
+    @Query(ValidationPipe) query: FindProductDto,
+  ): Promise<Product[]> {
+    try {
+      return await this.productService.findAll(query);
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Error fetching products',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Get(':id')
@@ -82,8 +100,15 @@ export class ProductController {
     description: 'The product record',
     type: Product,
   })
-  findOne(@Param('id', ParseIntPipe) id: number): Promise<Product> {
-    return this.productService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number): Promise<Product> {
+    try {
+      return await this.productService.findOne(id);
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Error fetching product',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Put()
@@ -104,15 +129,27 @@ export class ProductController {
     type: Product,
     isArray: true,
   })
-  updateProductsByCode(
+  async updateProductsByCode(
     @Query(ValidationPipe) query: UpdateProductsByCodeDto,
     @Body(ValidationPipe) updateProductDto: UpdateProductDto,
   ) {
-    const filteredData = {
-      ...(updateProductDto.location && { location: updateProductDto.location }),
-      ...(updateProductDto.price && { price: updateProductDto.price }),
-    };
-    return this.productService.updateProductsByCode(query, filteredData);
+    try {
+      const filteredData = {
+        ...(updateProductDto.location && {
+          location: updateProductDto.location,
+        }),
+        ...(updateProductDto.price && { price: updateProductDto.price }),
+      };
+      return await this.productService.updateProductsByCode(
+        query,
+        filteredData,
+      );
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Error updating products',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Put(':id')
@@ -132,16 +169,25 @@ export class ProductController {
     description: 'The product record',
     type: Product,
   })
-  update(
+  async update(
     @Param('id', ParseIntPipe) id: number,
     @Body(ValidationPipe) updateProductDto: UpdateProductDto,
   ) {
-    const filteredData = {
-      ...(updateProductDto.location && { location: updateProductDto.location }),
-      ...(updateProductDto.price && { price: updateProductDto.price }),
-    };
+    try {
+      const filteredData = {
+        ...(updateProductDto.location && {
+          location: updateProductDto.location,
+        }),
+        ...(updateProductDto.price && { price: updateProductDto.price }),
+      };
 
-    return this.productService.update(id, filteredData);
+      return await this.productService.update(id, filteredData);
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Error updating product',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Delete()
@@ -161,8 +207,15 @@ export class ProductController {
     description: 'The product record',
     type: Product,
   })
-  removeProductsByCode(@Query(ValidationPipe) query: DeleteProductDto) {
-    return this.productService.removeProductsByCode(query);
+  async removeProductsByCode(@Query(ValidationPipe) query: DeleteProductDto) {
+    try {
+      return await this.productService.removeProductsByCode(query);
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Error deleting products',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Delete(':id')
@@ -182,7 +235,14 @@ export class ProductController {
     description: 'The product record',
     type: Product,
   })
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.productService.remove(id);
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    try {
+      return await this.productService.remove(id);
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Error deleting product',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }

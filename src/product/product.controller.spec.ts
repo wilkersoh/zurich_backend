@@ -5,6 +5,12 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Product } from './entities/product.entity';
 import { CacheInterceptor } from '@nestjs/cache-manager';
+import {
+  HttpException,
+  HttpStatus,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 
 describe('ProductController', () => {
   let controller: ProductController;
@@ -68,6 +74,28 @@ describe('ProductController', () => {
       expect(result).toEqual(mockProduct);
       expect(service.create).toHaveBeenCalledWith(createProductDto);
     });
+
+    it('should handle error when create fails', async () => {
+      const createProductDto: CreateProductDto = {
+        code: '800',
+        description: 'Test Product',
+        location: 'Test Location',
+        price: 100,
+      };
+
+      const errorMessage = 'Failed to create product';
+      jest
+        .spyOn(service, 'create')
+        .mockRejectedValue(new BadRequestException(errorMessage));
+
+      try {
+        await controller.create(createProductDto);
+      } catch (error) {
+        expect(error).toBeInstanceOf(HttpException);
+        expect(error.message).toBe(errorMessage);
+        expect(error.status).toBe(HttpStatus.BAD_REQUEST);
+      }
+    });
   });
 
   describe('findAll', () => {
@@ -95,6 +123,20 @@ describe('ProductController', () => {
       expect(result).toEqual(mockProducts);
       expect(service.findAll).toHaveBeenCalledWith(query);
     });
+
+    it('should handle error when findAll fails', async () => {
+      const query = { location: 'Test Location' };
+      const errorMessage = 'Failed to fetch products';
+      jest.spyOn(service, 'findAll').mockRejectedValue(new Error(errorMessage));
+
+      try {
+        await controller.findAll(query);
+      } catch (error) {
+        expect(error).toBeInstanceOf(HttpException);
+        expect(error.message).toBe(errorMessage);
+        expect(error.status).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+    });
   });
 
   describe('findOne', () => {
@@ -106,6 +148,22 @@ describe('ProductController', () => {
 
       expect(result).toEqual(mockProduct);
       expect(service.findOne).toHaveBeenCalledWith(1);
+    });
+
+    it('should handle error when product is not found', async () => {
+      const id = 999;
+      const errorMessage = 'Product with ID 999 not found';
+      jest
+        .spyOn(service, 'findOne')
+        .mockRejectedValue(new NotFoundException(errorMessage));
+
+      try {
+        await controller.findOne(id);
+      } catch (error) {
+        expect(error).toBeInstanceOf(HttpException);
+        expect(error.message).toBe(errorMessage);
+        expect(error.status).toBe(HttpStatus.NOT_FOUND);
+      }
     });
   });
 
@@ -136,6 +194,26 @@ describe('ProductController', () => {
         updateProductDto,
       );
     });
+
+    it('should handle error when updateProductsByCode fails', async () => {
+      const query = { code: '800' };
+      const updateProductDto: UpdateProductDto = {
+        location: 'Updated Location',
+        price: 150,
+      };
+      const errorMessage = 'No products found with code 800';
+      jest
+        .spyOn(service, 'updateProductsByCode')
+        .mockRejectedValue(new NotFoundException(errorMessage));
+
+      try {
+        await controller.updateProductsByCode(query, updateProductDto);
+      } catch (error) {
+        expect(error).toBeInstanceOf(HttpException);
+        expect(error.message).toBe(errorMessage);
+        expect(error.status).toBe(HttpStatus.NOT_FOUND);
+      }
+    });
   });
 
   describe('update', () => {
@@ -159,6 +237,26 @@ describe('ProductController', () => {
         price: updateProductDto.price,
       });
     });
+
+    it('should handle error when update fails', async () => {
+      const id = 1;
+      const updateProductDto: UpdateProductDto = {
+        location: 'Updated Location',
+        price: 150,
+      };
+      const errorMessage = 'Product with ID 1 not found';
+      jest
+        .spyOn(service, 'update')
+        .mockRejectedValue(new NotFoundException(errorMessage));
+
+      try {
+        await controller.update(id, updateProductDto);
+      } catch (error) {
+        expect(error).toBeInstanceOf(HttpException);
+        expect(error.message).toBe(errorMessage);
+        expect(error.status).toBe(HttpStatus.NOT_FOUND);
+      }
+    });
   });
 
   describe('removeProductsByCode', () => {
@@ -176,6 +274,21 @@ describe('ProductController', () => {
         code: '800',
       });
     });
+
+    it('should handle error when removeProductsByCode fails', async () => {
+      const errorMessage = 'No products found with the specified code';
+      jest
+        .spyOn(service, 'removeProductsByCode')
+        .mockRejectedValue(new NotFoundException(errorMessage));
+
+      try {
+        await controller.removeProductsByCode({ code: '800' });
+      } catch (error) {
+        expect(error).toBeInstanceOf(HttpException);
+        expect(error.message).toBe(errorMessage);
+        expect(error.status).toBe(HttpStatus.NOT_FOUND);
+      }
+    });
   });
 
   describe('remove', () => {
@@ -186,6 +299,22 @@ describe('ProductController', () => {
 
       expect(result).toEqual(mockProduct);
       expect(service.remove).toHaveBeenCalledWith(1);
+    });
+
+    it('should handle error when remove fails', async () => {
+      const id = 1;
+      const errorMessage = 'Product with ID 1 not found';
+      jest
+        .spyOn(service, 'remove')
+        .mockRejectedValue(new NotFoundException(errorMessage));
+
+      try {
+        await controller.remove(id);
+      } catch (error) {
+        expect(error).toBeInstanceOf(HttpException);
+        expect(error.message).toBe(errorMessage);
+        expect(error.status).toBe(HttpStatus.NOT_FOUND);
+      }
     });
   });
 });

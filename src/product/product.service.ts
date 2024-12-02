@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import {
   UpdateProductDto,
@@ -6,7 +11,7 @@ import {
 } from './dto/update-product.dto';
 import { Product } from './entities/product.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, Repository } from 'typeorm';
+import { ILike, Repository, QueryFailedError } from 'typeorm';
 import { FindProductDto } from './dto/find-product.dto';
 import { DeleteProductDto } from './dto/delete-product.dto';
 
@@ -18,78 +23,150 @@ export class ProductService {
   ) {}
 
   async create(createProductDto: CreateProductDto) {
-    const product = this.productRepository.create(createProductDto);
-
-    return await this.productRepository.save(product);
+    try {
+      const product = this.productRepository.create(createProductDto);
+      return await this.productRepository.save(product);
+    } catch (error) {
+      if (error instanceof QueryFailedError) {
+        throw new BadRequestException(
+          'Invalid product data or duplicate entry',
+        );
+      }
+      throw new InternalServerErrorException('Failed to create product');
+    }
   }
 
-  findAll(filter: FindProductDto) {
-    // case insensitive for location field
-    const whereClause = filter
-      ? Object.entries(filter).reduce((acc, [key, value]) => {
-          if (key === 'code') {
-            acc[key] = value;
-          } else {
-            acc[key] = ILike(`${value}`);
-          }
-          return acc;
-        }, {})
-      : {};
+  async findAll(filter: FindProductDto) {
+    try {
+      const whereClause = filter
+        ? Object.entries(filter).reduce((acc, [key, value]) => {
+            if (key === 'code') {
+              acc[key] = value;
+            } else {
+              acc[key] = ILike(`${value}`);
+            }
+            return acc;
+          }, {})
+        : {};
 
-    return this.productRepository.find({
-      where: whereClause,
-    });
+      return await this.productRepository.find({
+        where: whereClause,
+      });
+    } catch (error) {
+      if (error instanceof QueryFailedError) {
+        throw new BadRequestException('Invalid filter parameters');
+      }
+      throw new InternalServerErrorException('Failed to fetch products');
+    }
   }
 
   async findOne(id: number) {
-    const product = await this.productRepository.findOneBy({ id });
-    if (!product) throw new NotFoundException('Product Not Found');
-
-    return product;
+    try {
+      const product = await this.productRepository.findOneBy({ id });
+      if (!product) {
+        throw new NotFoundException(`Product with ID ${id} not found`);
+      }
+      return product;
+    } catch (error) {
+      console.log('error', error);
+      if (error instanceof NotFoundException) {
+        console.log('error: @@@', error);
+        throw error;
+      }
+      if (error instanceof QueryFailedError) {
+        throw new BadRequestException('Invalid product ID');
+      }
+      throw new InternalServerErrorException('Failed to fetch product');
+    }
   }
 
   async update(id: number, updateProductDto: UpdateProductDto) {
-    const product = await this.productRepository.findOneBy({ id });
+    try {
+      const product = await this.productRepository.findOneBy({ id });
+      if (!product) {
+        throw new NotFoundException(`Product with ID ${id} not found`);
+      }
 
-    if (!product) {
-      throw new NotFoundException('Product not found');
+      await this.productRepository.update(id, updateProductDto);
+      return {
+        updatedId: id,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof QueryFailedError) {
+        throw new BadRequestException('Invalid update data');
+      }
+      throw new InternalServerErrorException('Failed to update product');
     }
-    await this.productRepository.update(id, updateProductDto);
-
-    return {
-      updatedId: id,
-    };
   }
 
   async updateProductsByCode(
     query: UpdateProductsByCodeDto,
     updateProductDto: UpdateProductDto,
   ) {
-    const products = await this.productRepository.find({ where: query });
+    try {
+      const products = await this.productRepository.find({ where: query });
+      if (!products.length) {
+        throw new NotFoundException(
+          `No products found with code ${query.code}`,
+        );
+      }
 
-    if (!products.length) {
-      throw new NotFoundException('No products found with this code');
+      await this.productRepository.update(
+        { code: query.code },
+        updateProductDto,
+      );
+      return {
+        updatedIds: products.map((product) => product.id),
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof QueryFailedError) {
+        throw new BadRequestException('Invalid update data or product code');
+      }
+      throw new InternalServerErrorException('Failed to update products');
     }
-
-    await this.productRepository.update({ code: query.code }, updateProductDto);
-
-    return {
-      updatedIds: products.map((product) => product.id),
-    };
   }
 
   async remove(id: number) {
-    const product = await this.productRepository.findOneBy({ id });
-    if (!product) throw new NotFoundException('Product not found');
-    return await this.productRepository.remove(product);
+    try {
+      const product = await this.productRepository.findOneBy({ id });
+      if (!product) {
+        throw new NotFoundException(`Product with ID ${id} not found`);
+      }
+      return await this.productRepository.remove(product);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof QueryFailedError) {
+        throw new BadRequestException('Invalid product ID');
+      }
+      throw new InternalServerErrorException('Failed to delete product');
+    }
   }
 
   async removeProductsByCode(code?: DeleteProductDto) {
-    const products = await this.productRepository.find({ where: code });
-
-    if (!products) {
-      throw new NotFoundException('Product not found');
+    try {
+      const products = await this.productRepository.find({ where: code });
+      if (!products || products.length === 0) {
+        throw new NotFoundException(
+          `No products found with the specified code`,
+        );
+      }
+      return await this.productRepository.remove(products);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof QueryFailedError) {
+        throw new BadRequestException('Invalid product code');
+      }
+      throw new InternalServerErrorException('Failed to delete products');
     }
-    return await this.productRepository.remove(products);
   }
 }

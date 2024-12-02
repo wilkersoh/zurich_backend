@@ -2,8 +2,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ProductService } from './product.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Product } from './entities/product.entity';
-import { ILike } from 'typeorm';
-import { NotFoundException } from '@nestjs/common';
+import { ILike, QueryFailedError } from 'typeorm';
+import {
+  NotFoundException,
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 
 describe('ProductService', () => {
@@ -54,6 +58,48 @@ describe('ProductService', () => {
       expect(mockRepository.create).toHaveBeenCalledWith(createProductDto);
       expect(mockRepository.save).toHaveBeenCalledWith(createProductDto);
       expect(result).toEqual(expectedProduct);
+    });
+
+    it('should throw BadRequestException on duplicate entry', async () => {
+      const createProductDto: CreateProductDto = {
+        code: '1000',
+        description: 'Test Product',
+        location: 'Test Location',
+        price: 100,
+      };
+
+      const error = new Error('duplicate key value violates unique constraint');
+
+      mockRepository.create.mockReturnValue(createProductDto);
+      mockRepository.save.mockRejectedValue(
+        new QueryFailedError('query', [], error),
+      );
+
+      await expect(service.create(createProductDto)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.create(createProductDto)).rejects.toThrow(
+        'Invalid product data or duplicate entry',
+      );
+    });
+
+    it('should throw InternalServerErrorException on unexpected error', async () => {
+      const createProductDto: CreateProductDto = {
+        code: '1000',
+        description: 'Test Product',
+        location: 'Test Location',
+        price: 100,
+      };
+
+      mockRepository.create.mockReturnValue(createProductDto);
+      mockRepository.save.mockRejectedValue(new Error('Unexpected error'));
+
+      await expect(service.create(createProductDto)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+      await expect(service.create(createProductDto)).rejects.toThrow(
+        'Failed to create product',
+      );
     });
   });
 
@@ -136,6 +182,35 @@ describe('ProductService', () => {
         },
       });
     });
+
+    it('should throw BadRequestException on invalid filter parameters', async () => {
+      const filter = { location: 'malaysia' };
+      const error = new Error('invalid input syntax');
+      mockRepository.find.mockRejectedValue(
+        new QueryFailedError('query', [], error),
+      );
+
+      await expect(service.findAll(filter)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.findAll(filter)).rejects.toThrow(
+        'Invalid filter parameters',
+      );
+    });
+
+    it('should throw InternalServerErrorException on unexpected error', async () => {
+      const filter = { location: 'malaysia' };
+      mockRepository.find.mockRejectedValue(
+        new Error('Database connection error'),
+      );
+
+      await expect(service.findAll(filter)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+      await expect(service.findAll(filter)).rejects.toThrow(
+        'Failed to fetch products',
+      );
+    });
   });
 
   describe('findOne', () => {
@@ -157,6 +232,31 @@ describe('ProductService', () => {
       mockRepository.findOneBy.mockResolvedValue(null);
 
       await expect(service.findOne(id)).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException on invalid ID format', async () => {
+      const id = 1;
+      const error = new Error('invalid input syntax');
+      mockRepository.findOneBy.mockRejectedValue(
+        new QueryFailedError('query', [], error),
+      );
+
+      await expect(service.findOne(id)).rejects.toThrow(BadRequestException);
+      await expect(service.findOne(id)).rejects.toThrow('Invalid product ID');
+    });
+
+    it('should throw InternalServerErrorException on unexpected error', async () => {
+      const id = 1;
+      mockRepository.findOneBy.mockRejectedValue(
+        new Error('Database connection error'),
+      );
+
+      await expect(service.findOne(id)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+      await expect(service.findOne(id)).rejects.toThrow(
+        'Failed to fetch product',
+      );
     });
   });
 
@@ -184,6 +284,39 @@ describe('ProductService', () => {
 
       await expect(service.update(id, updateProductDto)).rejects.toThrow(
         NotFoundException,
+      );
+    });
+
+    it('should throw BadRequestException on invalid update data', async () => {
+      const id = 1;
+      const updateProductDto = { location: 'Singapore' };
+      mockRepository.findOneBy.mockResolvedValue({ id: 1 });
+      const error = new Error('invalid input syntax');
+      mockRepository.update.mockRejectedValue(
+        new QueryFailedError('query', [], error),
+      );
+
+      await expect(service.update(id, updateProductDto)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.update(id, updateProductDto)).rejects.toThrow(
+        'Invalid update data',
+      );
+    });
+
+    it('should throw InternalServerErrorException on unexpected error', async () => {
+      const id = 1;
+      const updateProductDto = { location: 'Singapore' };
+      mockRepository.findOneBy.mockResolvedValue({ id: 1 });
+      mockRepository.update.mockRejectedValue(
+        new Error('Database connection error'),
+      );
+
+      await expect(service.update(id, updateProductDto)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+      await expect(service.update(id, updateProductDto)).rejects.toThrow(
+        'Failed to update product',
       );
     });
   });
@@ -223,6 +356,39 @@ describe('ProductService', () => {
         service.updateProductsByCode(query, updateProductDto),
       ).rejects.toThrow(NotFoundException);
     });
+
+    it('should throw BadRequestException on invalid update data or code', async () => {
+      const query = { code: '1000' };
+      const updateProductDto = { location: 'Singapore' };
+      mockRepository.find.mockResolvedValue([{ id: 1 }]);
+      const error = new Error('invalid input syntax');
+      mockRepository.update.mockRejectedValue(
+        new QueryFailedError('query', [], error),
+      );
+
+      await expect(
+        service.updateProductsByCode(query, updateProductDto),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.updateProductsByCode(query, updateProductDto),
+      ).rejects.toThrow('Invalid update data or product code');
+    });
+
+    it('should throw InternalServerErrorException on unexpected error', async () => {
+      const query = { code: '1000' };
+      const updateProductDto = { location: 'Singapore' };
+      mockRepository.find.mockResolvedValue([{ id: 1 }]);
+      mockRepository.update.mockRejectedValue(
+        new Error('Database connection error'),
+      );
+
+      await expect(
+        service.updateProductsByCode(query, updateProductDto),
+      ).rejects.toThrow(InternalServerErrorException);
+      await expect(
+        service.updateProductsByCode(query, updateProductDto),
+      ).rejects.toThrow('Failed to update products');
+    });
   });
 
   describe('remove', () => {
@@ -246,6 +412,31 @@ describe('ProductService', () => {
       mockRepository.findOneBy.mockResolvedValue(null);
 
       await expect(service.remove(id)).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException on invalid ID format', async () => {
+      const id = 1;
+      const error = new Error('invalid input syntax');
+      mockRepository.findOneBy.mockRejectedValue(
+        new QueryFailedError('query', [], error),
+      );
+
+      await expect(service.remove(id)).rejects.toThrow(BadRequestException);
+      await expect(service.remove(id)).rejects.toThrow('Invalid product ID');
+    });
+
+    it('should throw InternalServerErrorException on unexpected error', async () => {
+      const id = 1;
+      mockRepository.findOneBy.mockRejectedValue(
+        new Error('Database connection error'),
+      );
+
+      await expect(service.remove(id)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+      await expect(service.remove(id)).rejects.toThrow(
+        'Failed to delete product',
+      );
     });
   });
 
@@ -274,6 +465,35 @@ describe('ProductService', () => {
 
       await expect(service.removeProductsByCode(code)).rejects.toThrow(
         NotFoundException,
+      );
+    });
+
+    it('should throw BadRequestException on invalid code format', async () => {
+      const code = { code: '1000' };
+      const error = new Error('invalid input syntax');
+      mockRepository.find.mockRejectedValue(
+        new QueryFailedError('query', [], error),
+      );
+
+      await expect(service.removeProductsByCode(code)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.removeProductsByCode(code)).rejects.toThrow(
+        'Invalid product code',
+      );
+    });
+
+    it('should throw InternalServerErrorException on unexpected error', async () => {
+      const code = { code: '1000' };
+      mockRepository.find.mockRejectedValue(
+        new Error('Database connection error'),
+      );
+
+      await expect(service.removeProductsByCode(code)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+      await expect(service.removeProductsByCode(code)).rejects.toThrow(
+        'Failed to delete products',
       );
     });
   });
